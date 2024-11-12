@@ -56,22 +56,22 @@ def init_db():
                   decision TEXT,
                   percentage INTEGER,
                   reason TEXT,
-                  sxp_balance REAL,
+                  SOL_balance REAL,
                   krw_balance REAL,
-                  sxp_avg_buy_price REAL,
-                  sxp_krw_price REAL,
+                  SOL_avg_buy_price REAL,
+                  SOL_krw_price REAL,
                   reflection TEXT)''')
     conn.commit()
     return conn
 
 # 거래 기록을 DB에 저장하는 함수
-def log_trade(conn, decision, percentage, reason, sxp_balance, krw_balance, sxp_avg_buy_price, sxp_krw_price, reflection=''):
+def log_trade(conn, decision, percentage, reason, SOL_balance, krw_balance, SOL_avg_buy_price, SOL_krw_price, reflection=''):
     c = conn.cursor()
     timestamp = datetime.now().isoformat()
     c.execute("""INSERT INTO trades 
-                 (timestamp, decision, percentage, reason, sxp_balance, krw_balance, sxp_avg_buy_price, sxp_krw_price, reflection) 
+                 (timestamp, decision, percentage, reason, SOL_balance, krw_balance, SOL_avg_buy_price, SOL_krw_price, reflection) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-              (timestamp, decision, percentage, reason, sxp_balance, krw_balance, sxp_avg_buy_price, sxp_krw_price, reflection))
+              (timestamp, decision, percentage, reason, SOL_balance, krw_balance, SOL_avg_buy_price, SOL_krw_price, reflection))
     conn.commit()
 
 # 최근 투자 기록 조회
@@ -86,10 +86,10 @@ def get_recent_trades(conn, days=7):
 def calculate_performance(trades_df):
     if trades_df.empty:
         return 0 # 기록이 없을 경우 0%로 설정
-    # 초기 잔고 계산 (KRW + SXP + SXP * 현재 가격)
-    initial_balance = trades_df.iloc[-1]['krw_balance'] + trades_df.iloc[-1]['sxp_balance'] * trades_df.iloc[-1]['sxp_krw_price'] + trades_df.iloc[-1]['sxp_balance'] * trades_df.iloc[-1]['sxp_krw_price']
+    # 초기 잔고 계산 (KRW + SOL + SOL * 현재 가격)
+    initial_balance = trades_df.iloc[-1]['krw_balance'] + trades_df.iloc[-1]['SOL_balance'] * trades_df.iloc[-1]['SOL_krw_price'] + trades_df.iloc[-1]['SOL_balance'] * trades_df.iloc[-1]['SOL_krw_price']
     # 최종 잔고 계산
-    final_balance = trades_df.iloc[0]['krw_balance'] + trades_df.iloc[0]['sxp_balance'] * trades_df.iloc[0]['sxp_krw_price']
+    final_balance = trades_df.iloc[0]['krw_balance'] + trades_df.iloc[0]['SOL_balance'] * trades_df.iloc[0]['SOL_krw_price']
     return (final_balance - initial_balance) / initial_balance * 100
 
 # AI 모델을 사용하여 최근 투자 기록과 시장 데이터를 기반으로 분석 및 반성을 생성하는 함수
@@ -183,7 +183,7 @@ def get_bitcoin_news():
     url = "https://serpapi.com/search.json"
     params = {
         "engine": "google_news",
-        "q": "sxp",
+        "q": "SOL",
         "api_key": serpapi_key
     }
     
@@ -313,17 +313,17 @@ def ai_trading():
     ### 데이터 가져오기
     # 1. 현재 투자 상태 조회
     all_balances = upbit.get_balances()
-    filtered_balances = [balance for balance in all_balances if balance['currency'] in ['SXP', 'KRW']]
+    filtered_balances = [balance for balance in all_balances if balance['currency'] in ['SOL', 'KRW']]
     
     # 2. 오더북(호가 데이터) 조회
-    orderbook = pyupbit.get_orderbook("KRW-SXP")
+    orderbook = pyupbit.get_orderbook("KRW-SOL")
     
     # 3. 차트 데이터 조회 및 보조지표 추가
-    df_daily = pyupbit.get_ohlcv("KRW-SXP", interval="day", count=30)
+    df_daily = pyupbit.get_ohlcv("KRW-SOL", interval="day", count=30)
     df_daily = dropna(df_daily)
     df_daily = add_indicators(df_daily)
     
-    df_hourly = pyupbit.get_ohlcv("KRW-SXP", interval="minute60", count=24)
+    df_hourly = pyupbit.get_ohlcv("KRW-SOL", interval="minute60", count=24)
     df_hourly = dropna(df_hourly)
     df_hourly = add_indicators(df_hourly)
 
@@ -343,7 +343,7 @@ def ai_trading():
     driver = None
     try:
         driver = create_driver()
-        driver.get("https://upbit.com/full_chart?code=CRIX.UPBIT.KRW-SXP")
+        driver.get("https://upbit.com/full_chart?code=CRIX.UPBIT.KRW-SOL")
         logger.info("페이지 로드 완료")
         time.sleep(30)  # 페이지 로딩 대기 시간 증가
         logger.info("차트 작업 시작")
@@ -411,7 +411,7 @@ def ai_trading():
                         Response format:
                         1. Decision (buy, sell, or hold)
                         2. If the decision is 'buy', provide a percentage (1-100) of available KRW to use for buying.
-                        If the decision is 'sell', provide a percentage (1-100) of held SXP to sell.
+                        If the decision is 'sell', provide a percentage (1-100) of held SOL to sell.
                         If the decision is 'hold', set the percentage to 0.
                         3. Reason for your decision
 
@@ -480,7 +480,7 @@ def ai_trading():
                 if buy_amount > 5000:
                     logger.info(f"Buy Order Executed: {result.percentage}% of available KRW")
                     try:
-                        order = upbit.buy_market_order("KRW-SXP", buy_amount)
+                        order = upbit.buy_market_order("KRW-SOL", buy_amount)
                         if order:
                             logger.info(f"Buy order executed successfully: {order}")
                             order_executed = True
@@ -491,16 +491,16 @@ def ai_trading():
                 else:
                     logger.warning("Buy Order Failed: Insufficient KRW (less than 5000 KRW)")
             elif result.decision == "sell":
-                my_sxp = upbit.get_balance("KRW-SXP")
-                if my_sxp is None:
+                my_SOL = upbit.get_balance("KRW-SOL")
+                if my_SOL is None:
                     logger.error("Failed to retrieve KRW balance.")
                     return
-                sell_amount = my_sxp * (result.percentage / 100)
-                current_price = pyupbit.get_current_price("KRW-SXP")
+                sell_amount = my_SOL * (result.percentage / 100)
+                current_price = pyupbit.get_current_price("KRW-SOL")
                 if sell_amount * current_price > 5000:
-                    logger.info(f"Sell Order Executed: {result.percentage}% of held SXP")
+                    logger.info(f"Sell Order Executed: {result.percentage}% of held SOL")
                     try:
-                        order = upbit.sell_market_order("KRW-SXP", sell_amount)
+                        order = upbit.sell_market_order("KRW-SOL", sell_amount)
                         if order:
                             order_executed = True
                         else:
@@ -508,19 +508,19 @@ def ai_trading():
                     except Exception as e:
                         logger.error(f"Error executing sell order: {e}")
                 else:
-                    logger.warning("Sell Order Failed: Insufficient SXP (less than 5000 KRW worth)")
+                    logger.warning("Sell Order Failed: Insufficient SOL (less than 5000 KRW worth)")
             
             # 거래 실행 여부와 관계없이 현재 잔고 조회
             time.sleep(2)  # API 호출 제한을 고려하여 잠시 대기
             balances = upbit.get_balances()
-            sxp_balance = next((float(balance['balance']) for balance in balances if balance['currency'] == 'SXP'), 0)
+            SOL_balance = next((float(balance['balance']) for balance in balances if balance['currency'] == 'SOL'), 0)
             krw_balance = next((float(balance['balance']) for balance in balances if balance['currency'] == 'KRW'), 0)
-            sxp_avg_buy_price = next((float(balance['avg_buy_price']) for balance in balances if balance['currency'] == 'SXP'), 0)
-            current_sxp_price = pyupbit.get_current_price("KRW-SXP")
+            SOL_avg_buy_price = next((float(balance['avg_buy_price']) for balance in balances if balance['currency'] == 'SOL'), 0)
+            current_SOL_price = pyupbit.get_current_price("KRW-SOL")
 
             # 거래 기록을 DB에 저장하기
             log_trade(conn, result.decision, result.percentage if order_executed else 0, result.reason, 
-                    sxp_balance, krw_balance, sxp_avg_buy_price, current_sxp_price, reflection)
+                    SOL_balance, krw_balance, SOL_avg_buy_price, current_SOL_price, reflection)
     except sqlite3.Error as e:
         logger.error(f"Database connection error: {e}")
         return
